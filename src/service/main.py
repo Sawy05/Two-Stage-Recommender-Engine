@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, Optional
 
 from fastapi import FastAPI
 
@@ -16,7 +16,7 @@ from src.service.schemas import (
     RecommendationResponse,
 )
 
-_PIPELINE_INSTANCE: Optional[TwoStageRecommendationPipeline] = None
+_PIPELINE_INSTANCE: TwoStageRecommendationPipeline | None = None
 
 
 def get_pipeline() -> TwoStageRecommendationPipeline:
@@ -35,7 +35,7 @@ async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
 
 
 def create_app(
-    pipeline: Optional[TwoStageRecommendationPipeline] = None,
+    pipeline: TwoStageRecommendationPipeline | None = None,
 ) -> FastAPI:
     """Create and configure the FastAPI application."""
     global _PIPELINE_INSTANCE

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -23,13 +22,13 @@ class _TraceableDCNv2Wrapper(nn.Module):
         self,
         sparse_matrix: torch.Tensor,
         dense_features: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         return self.model(sparse_matrix, dense_features)
 
 
 def export_to_torchscript(
     model: DCNv2RankingModel,
-    output_path: Union[str, Path],
+    output_path: str | Path,
     batch_size: int = 32,
 ) -> Path:
     """Export DCNv2RankingModel to a traced TorchScript artifact (.pt)."""
@@ -52,7 +51,7 @@ def export_to_torchscript(
 
 def export_to_onnx(
     model: DCNv2RankingModel,
-    output_path: Union[str, Path],
+    output_path: str | Path,
     batch_size: int = 32,
     opset_version: int = 17,
 ) -> Path:
@@ -97,7 +96,7 @@ def export_to_onnx(
 @torch.no_grad()
 def verify_exported_parity(
     eager_model: DCNv2RankingModel,
-    torchscript_path: Union[str, Path],
+    torchscript_path: str | Path,
     batch_size: int = 16,
     atol: float = 1e-5,
 ) -> float:
@@ -106,8 +105,12 @@ def verify_exported_parity(
     loaded_jit = torch.jit.load(str(torchscript_path), map_location="cpu")
     loaded_jit.eval()
 
-    sparse_matrix = torch.randint(1, 4, size=(batch_size, len(eager_model.SPARSE_KEYS)), dtype=torch.long)
-    dense_features = torch.randn((batch_size, eager_model.config.dense_feature_dim), dtype=torch.float32)
+    sparse_matrix = torch.randint(
+        1, 4, size=(batch_size, len(eager_model.SPARSE_KEYS)), dtype=torch.long
+    )
+    dense_features = torch.randn(
+        (batch_size, eager_model.config.dense_feature_dim), dtype=torch.float32
+    )
 
     eager_ctr, eager_cvr = eager_cpu(sparse_matrix, dense_features)
     jit_ctr, jit_cvr = loaded_jit(sparse_matrix, dense_features)
@@ -131,10 +134,10 @@ class ExportedDCNv2Scorer:
     def __init__(
         self,
         model: DCNv2RankingModel,
-        torchscript_path: Optional[Union[str, Path]] = None,
+        torchscript_path: str | Path | None = None,
     ) -> None:
         self.model = model.cpu().eval()
-        self.jit_module: Optional[torch.jit.ScriptModule] = None
+        self.jit_module: torch.jit.ScriptModule | None = None
         if torchscript_path is not None and Path(torchscript_path).exists():
             self.jit_module = torch.jit.load(str(torchscript_path), map_location="cpu")
             self.jit_module.eval()
@@ -143,7 +146,7 @@ class ExportedDCNv2Scorer:
         self,
         sparse_matrix: np.ndarray,
         dense_features: np.ndarray,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Score a candidate batch and return (p_ctr, p_cvr) NumPy arrays."""
         with torch.inference_mode():
             sp_tensor = torch.from_numpy(np.ascontiguousarray(sparse_matrix, dtype=np.int64))

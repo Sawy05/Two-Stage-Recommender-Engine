@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import torch
@@ -42,13 +42,13 @@ class RedisUserVectorCache:
 
     def __init__(
         self,
-        host: Optional[str] = None,
+        host: str | None = None,
         port: int = 6379,
         ttl_seconds: int = 3600,
     ) -> None:
         self.ttl_seconds = ttl_seconds
-        self._local_store: Dict[int, Tuple[np.ndarray, float]] = {}
-        self._redis_client: Optional[Any] = None
+        self._local_store: dict[int, tuple[np.ndarray, float]] = {}
+        self._redis_client: Any | None = None
         self.backend_name: str = "in_memory_lru"
 
         if HAS_REDIS and host:
@@ -61,7 +61,7 @@ class RedisUserVectorCache:
                 self._redis_client = None
                 self.backend_name = "in_memory_lru"
 
-    def get(self, user_id: int) -> Optional[np.ndarray]:
+    def get(self, user_id: int) -> np.ndarray | None:
         """Retrieve cached 64D float32 user embedding if present and unexpired."""
         now = time.monotonic()
         if user_id in self._local_store:
@@ -107,8 +107,8 @@ class TwoStageRecommendationPipeline:
         indexer: ItemVectorIndexer,
         ann_engine: ANNSearchEngine,
         bandit: LinUCBContextualBandit,
-        user_cache: Optional[RedisUserVectorCache] = None,
-        torchscript_path: Optional[str] = None,
+        user_cache: RedisUserVectorCache | None = None,
+        torchscript_path: str | None = None,
         cvr_ranking_alpha: float = 2.5,
     ) -> None:
         self.bundle = bundle
@@ -140,7 +140,7 @@ class TwoStageRecommendationPipeline:
         num_items: int = 1500,
         num_interactions: int = 8000,
         seed: int = 42,
-    ) -> "TwoStageRecommendationPipeline":
+    ) -> TwoStageRecommendationPipeline:
         """Create and initialize a complete ready-to-serve two-stage pipeline."""
         torch.manual_seed(seed)
         gen = SyntheticEcommerceGenerator(
@@ -190,7 +190,7 @@ class TwoStageRecommendationPipeline:
         req = RecommendationRequest(user_id=sample_user_id, top_k_retrieval=100, top_k_final=20)
         self.recommend(req)
 
-    def resolve_user_vector(self, user_id: int) -> Tuple[np.ndarray, bool, float]:
+    def resolve_user_vector(self, user_id: int) -> tuple[np.ndarray, bool, float]:
         """Fetch 64D user vector from Redis cache or compute via UserTower on miss."""
         t0 = time.perf_counter_ns()
         cached = self.user_cache.get(user_id)
@@ -204,9 +204,7 @@ class TwoStageRecommendationPipeline:
                 key: torch.tensor([int(self.bundle.user_sparse_matrix[key][uid])], dtype=torch.long)
                 for key in UserTower.SPARSE_KEYS
             }
-            user_dense = torch.from_numpy(
-                self.bundle.user_dense_matrix[uid : uid + 1]
-            )
+            user_dense = torch.from_numpy(self.bundle.user_dense_matrix[uid : uid + 1])
             vec = self.two_tower_model.encode_user(user_sparse, user_dense)[0].numpy()
 
         self.user_cache.set(user_id, vec)
@@ -216,12 +214,12 @@ class TwoStageRecommendationPipeline:
     def _score_stage2_candidates(
         self,
         user_id: int,
-        candidates: List[RetrievalCandidate],
+        candidates: list[RetrievalCandidate],
         device_type: int,
         hour_of_day: int,
         day_of_week: int,
-        active_category_id: Optional[int],
-    ) -> Tuple[List[Dict[str, Any]], float]:
+        active_category_id: int | None,
+    ) -> tuple[list[dict[str, Any]], float]:
         """Vectorized Stage 2 DCNv2 batch scoring and diversity-aware re-ranking."""
         t0 = time.perf_counter_ns()
         if not candidates:
@@ -258,9 +256,7 @@ class TwoStageRecommendationPipeline:
         pref_c1, pref_c2 = user.preferred_categories
         if active_category_id is not None:
             cat_match = (
-                (cat_ids == active_category_id)
-                | (cat_ids == pref_c1)
-                | (cat_ids == pref_c2)
+                (cat_ids == active_category_id) | (cat_ids == pref_c1) | (cat_ids == pref_c2)
             ).astype(np.float32)
         else:
             cat_match = ((cat_ids == pref_c1) | (cat_ids == pref_c2)).astype(np.float32)
@@ -284,16 +280,13 @@ class TwoStageRecommendationPipeline:
 
         p_ctr, p_cvr = self.scorer.score_batch(sparse_matrix, dense_features)
         combined_scores = (
-            p_ctr
-            + self.cvr_ranking_alpha * p_cvr
-            + 0.15 * ann_scores
-            + 0.05 * cat_match
+            p_ctr + self.cvr_ranking_alpha * p_cvr + 0.15 * ann_scores + 0.05 * cat_match
         )
 
         # Sort by combined utility with category saturation penalty for feed diversity
         order = np.argsort(-combined_scores)
-        category_counts: Dict[int, int] = {}
-        ranked: List[Dict[str, Any]] = []
+        category_counts: dict[int, int] = {}
+        ranked: list[dict[str, Any]] = []
 
         for idx in order:
             iid = int(cand_ids[idx])

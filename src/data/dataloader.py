@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Dict, List
-
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset
@@ -30,12 +28,12 @@ class TwoTowerDataset(Dataset):
                 events = bundle.interactions
         else:
             events = bundle.interactions
-        self.events: List[InteractionEvent] = events
+        self.events: list[InteractionEvent] = events
 
     def __len__(self) -> int:
         return len(self.events)
 
-    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         event = self.events[idx]
         user = self.bundle.users[event.user_id]
         item = self.bundle.items[event.item_id]
@@ -65,7 +63,7 @@ class RankingDataset(Dataset):
     def __len__(self) -> int:
         return len(self.events)
 
-    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         event = self.events[idx]
         user = self.bundle.users[event.user_id]
         item = self.bundle.items[event.item_id]
@@ -104,8 +102,10 @@ class RankingCollator:
         "device_type",
     )
 
-    def __call__(self, batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor | Dict[str, torch.Tensor]]:
-        sparse_features: Dict[str, torch.Tensor] = {}
+    def __call__(
+        self, batch: list[dict[str, torch.Tensor]]
+    ) -> dict[str, torch.Tensor | dict[str, torch.Tensor]]:
+        sparse_features: dict[str, torch.Tensor] = {}
         for key in self.SPARSE_KEYS:
             sparse_features[key] = torch.stack([sample[key] for sample in batch], dim=0)
 

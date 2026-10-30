@@ -8,7 +8,6 @@ predicted Click-Through Rate (pCTR) and Conversion Rate (pCVR).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -18,7 +17,7 @@ import torch.nn as nn
 class DCNv2Config:
     """Configuration for the Stage 2 DCNv2 multi-task ranking architecture."""
 
-    sparse_cardinalities: Dict[str, int] = field(
+    sparse_cardinalities: dict[str, int] = field(
         default_factory=lambda: {
             "user_id": 2001,
             "item_id": 5001,
@@ -33,7 +32,7 @@ class DCNv2Config:
     dense_feature_dim: int = 26
     num_cross_layers: int = 3
     low_rank_dim: int = 32
-    deep_hidden_dims: Tuple[int, ...] = (256, 128, 64)
+    deep_hidden_dims: tuple[int, ...] = (256, 128, 64)
     dropout: float = 0.1
     ctr_loss_weight: float = 1.0
     cvr_loss_weight: float = 1.0
@@ -59,7 +58,7 @@ class CrossLayerV2(nn.Module):
 class DCNv2RankingModel(nn.Module):
     """Deep & Cross Network v2 predicting multi-task pCTR and pCVR probabilities."""
 
-    SPARSE_KEYS: Tuple[str, ...] = (
+    SPARSE_KEYS: tuple[str, ...] = (
         "user_id",
         "item_id",
         "category_id",
@@ -69,7 +68,7 @@ class DCNv2RankingModel(nn.Module):
         "device_type",
     )
 
-    def __init__(self, config: Optional[DCNv2Config] = None) -> None:
+    def __init__(self, config: DCNv2Config | None = None) -> None:
         super().__init__()
         self.config = config or DCNv2Config()
 
@@ -83,14 +82,13 @@ class DCNv2RankingModel(nn.Module):
                 for key in self.SPARSE_KEYS
             ]
         )
-        self.max_indices: List[int] = [
+        self.max_indices: list[int] = [
             self.config.sparse_cardinalities[key] - 1 for key in self.SPARSE_KEYS
         ]
 
         self.dense_norm = nn.LayerNorm(self.config.dense_feature_dim)
         self.input_dim = (
-            len(self.SPARSE_KEYS) * self.config.sparse_embedding_dim
-            + self.config.dense_feature_dim
+            len(self.SPARSE_KEYS) * self.config.sparse_embedding_dim + self.config.dense_feature_dim
         )
 
         # Explicit bounded-degree Cross Network
@@ -103,7 +101,7 @@ class DCNv2RankingModel(nn.Module):
         self.cross_norm = nn.LayerNorm(self.input_dim)
 
         # Parallel Deep MLP Network
-        deep_modules: List[nn.Module] = []
+        deep_modules: list[nn.Module] = []
         in_d = self.input_dim
         for h_dim in self.config.deep_hidden_dims:
             deep_modules.extend(
@@ -136,7 +134,7 @@ class DCNv2RankingModel(nn.Module):
         for emb in self.embeddings:
             nn.init.normal_(emb.weight, mean=0.0, std=0.02)
 
-    def pack_sparse_dict(self, sparse_features: Dict[str, torch.Tensor]) -> torch.Tensor:
+    def pack_sparse_dict(self, sparse_features: dict[str, torch.Tensor]) -> torch.Tensor:
         """Stack a dictionary of 1D sparse feature tensors into a 2D tensor of shape (B, 7)."""
         cols = [sparse_features[key] for key in self.SPARSE_KEYS]
         return torch.stack(cols, dim=-1)
@@ -146,7 +144,7 @@ class DCNv2RankingModel(nn.Module):
         sparse_matrix: torch.Tensor,
         dense_features: torch.Tensor,
     ) -> torch.Tensor:
-        emb_parts: List[torch.Tensor] = []
+        emb_parts: list[torch.Tensor] = []
         for idx, emb_layer in enumerate(self.embeddings):
             col = sparse_matrix[:, idx].clamp(0, self.max_indices[idx])
             emb_parts.append(emb_layer(col))
@@ -155,9 +153,9 @@ class DCNv2RankingModel(nn.Module):
 
     def forward_logits(
         self,
-        sparse_inputs: Union[Dict[str, torch.Tensor], torch.Tensor],
+        sparse_inputs: dict[str, torch.Tensor] | torch.Tensor,
         dense_features: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Compute raw logits (ctr_logits, cvr_logits) of shape (B,)."""
         if isinstance(sparse_inputs, dict):
             sparse_matrix = self.pack_sparse_dict(sparse_inputs)
@@ -178,9 +176,9 @@ class DCNv2RankingModel(nn.Module):
 
     def forward(
         self,
-        sparse_inputs: Union[Dict[str, torch.Tensor], torch.Tensor],
+        sparse_inputs: dict[str, torch.Tensor] | torch.Tensor,
         dense_features: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Compute calibrated probabilities (pCTR, pCVR) in (0, 1) of shape (B,)."""
         ctr_logits, cvr_logits = self.forward_logits(sparse_inputs, dense_features)
         p_ctr = torch.sigmoid(ctr_logits)

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any
 
 import numpy as np
 import torch
@@ -30,26 +31,28 @@ class HNSWConfig:
     hnsw_ef_construct: int = 128
     hnsw_ef_search: int = 64
     prefer_qdrant_memory: bool = False
-    qdrant_host: Optional[str] = None
+    qdrant_host: str | None = None
     qdrant_port: int = 6333
 
 
 class ItemVectorIndexer:
     """Precomputes 64D item embeddings and builds an HNSW index for sub-5ms retrieval."""
 
-    def __init__(self, config: Optional[HNSWConfig] = None) -> None:
+    def __init__(self, config: HNSWConfig | None = None) -> None:
         self.config = config or HNSWConfig()
         self.item_ids: np.ndarray = np.empty(0, dtype=np.int64)
         self.embeddings: np.ndarray = np.empty((0, self.config.embedding_dim), dtype=np.float32)
-        self.metadata: Dict[int, Dict[str, Any]] = {}
-        self.id_to_row: Dict[int, int] = {}
+        self.metadata: dict[int, dict[str, Any]] = {}
+        self.id_to_row: dict[int, int] = {}
 
         # HNSW navigable small-world adjacency list + coarse entry-point centroids
         self.hnsw_neighbors: np.ndarray = np.empty((0, 0), dtype=np.int32)
-        self.entry_centroids: np.ndarray = np.empty((0, self.config.embedding_dim), dtype=np.float32)
-        self.centroid_members: List[np.ndarray] = []
+        self.entry_centroids: np.ndarray = np.empty(
+            (0, self.config.embedding_dim), dtype=np.float32
+        )
+        self.centroid_members: list[np.ndarray] = []
 
-        self._qdrant_client: Optional[Any] = None
+        self._qdrant_client: Any | None = None
         self._using_qdrant: bool = False
         self._init_backend()
 
@@ -89,7 +92,7 @@ class ItemVectorIndexer:
             ),
         )
 
-    def get_milvus_index_params(self) -> Dict[str, Any]:
+    def get_milvus_index_params(self) -> dict[str, Any]:
         """Return standard Milvus HNSW index specification for production deployment."""
         return {
             "index_type": "HNSW",
@@ -107,8 +110,8 @@ class ItemVectorIndexer:
         bundle: SyntheticDatasetBundle,
         batch_size: int = 512,
         include_cold_start: bool = False,
-        device: Optional[torch.device] = None,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+        device: torch.device | None = None,
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Encode catalog items with the ItemTower and populate the HNSW vector index."""
         resolved_device = device or get_device()
         model.to(resolved_device)
@@ -122,19 +125,15 @@ class ItemVectorIndexer:
         if not candidate_ids:
             candidate_ids = sorted(bundle.items.keys())
 
-        all_vecs: List[np.ndarray] = []
+        all_vecs: list[np.ndarray] = []
         for start in range(0, len(candidate_ids), batch_size):
             batch_ids = candidate_ids[start : start + batch_size]
             idx_arr = np.array(batch_ids, dtype=np.int64)
             item_sparse = {
-                key: torch.from_numpy(bundle.item_sparse_matrix[key][idx_arr]).to(
-                    resolved_device
-                )
+                key: torch.from_numpy(bundle.item_sparse_matrix[key][idx_arr]).to(resolved_device)
                 for key in ItemTower.SPARSE_KEYS
             }
-            item_dense = torch.from_numpy(bundle.item_dense_matrix[idx_arr]).to(
-                resolved_device
-            )
+            item_dense = torch.from_numpy(bundle.item_dense_matrix[idx_arr]).to(resolved_device)
             emb = model.encode_item(item_sparse, item_dense).cpu().numpy().astype(np.float32)
             all_vecs.append(emb)
 
@@ -151,7 +150,7 @@ class ItemVectorIndexer:
         self,
         item_ids: Sequence[int] | np.ndarray,
         embeddings: np.ndarray,
-        items_dict: Optional[Dict[int, ItemRecord]] = None,
+        items_dict: dict[int, ItemRecord] | None = None,
     ) -> None:
         """Index precomputed L2-normalized item vectors into HNSW structures and Qdrant."""
         self.item_ids = np.asarray(item_ids, dtype=np.int64)

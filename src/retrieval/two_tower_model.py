@@ -7,8 +7,8 @@ embedding space, trained with in-batch negative sampling and sampled softmax los
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
@@ -25,7 +25,7 @@ class TwoTowerConfig:
 
     embedding_dim: int = 64
     sparse_embedding_dim: int = 16
-    user_sparse_cardinalities: Dict[str, int] = field(
+    user_sparse_cardinalities: dict[str, int] = field(
         default_factory=lambda: {
             "user_id": 2001,
             "age_bucket": 8,
@@ -34,7 +34,7 @@ class TwoTowerConfig:
             "device_tier": 4,
         }
     )
-    item_sparse_cardinalities: Dict[str, int] = field(
+    item_sparse_cardinalities: dict[str, int] = field(
         default_factory=lambda: {
             "item_id": 5001,
             "category_id": 41,
@@ -44,7 +44,7 @@ class TwoTowerConfig:
     )
     user_dense_dim: int = 8
     item_dense_dim: int = 8
-    tower_hidden_dims: Tuple[int, ...] = (128, 64)
+    tower_hidden_dims: tuple[int, ...] = (128, 64)
     dropout: float = 0.1
     temperature: float = 0.07
 
@@ -60,7 +60,7 @@ class TowerMLP(nn.Module):
         dropout: float = 0.1,
     ) -> None:
         super().__init__()
-        layers: List[nn.Module] = [nn.LayerNorm(input_dim)]
+        layers: list[nn.Module] = [nn.LayerNorm(input_dim)]
         prev_dim = input_dim
         for h_dim in hidden_dims:
             layers.extend(
@@ -83,7 +83,7 @@ class TowerMLP(nn.Module):
 class UserTower(nn.Module):
     """User encoder mapping sparse categorical IDs and dense features to R^64."""
 
-    SPARSE_KEYS: Tuple[str, ...] = (
+    SPARSE_KEYS: tuple[str, ...] = (
         "user_id",
         "age_bucket",
         "gender",
@@ -105,9 +105,7 @@ class UserTower(nn.Module):
             }
         )
         self.dense_norm = nn.LayerNorm(config.user_dense_dim)
-        total_in_dim = (
-            len(self.SPARSE_KEYS) * config.sparse_embedding_dim + config.user_dense_dim
-        )
+        total_in_dim = len(self.SPARSE_KEYS) * config.sparse_embedding_dim + config.user_dense_dim
         self.mlp = TowerMLP(
             input_dim=total_in_dim,
             hidden_dims=config.tower_hidden_dims,
@@ -122,7 +120,7 @@ class UserTower(nn.Module):
 
     def forward(
         self,
-        sparse_features: Dict[str, torch.Tensor],
+        sparse_features: dict[str, torch.Tensor],
         dense_features: torch.Tensor,
     ) -> torch.Tensor:
         emb_list = [
@@ -139,7 +137,7 @@ class UserTower(nn.Module):
 class ItemTower(nn.Module):
     """Item encoder mapping sparse catalog IDs and dense attributes to R^64."""
 
-    SPARSE_KEYS: Tuple[str, ...] = (
+    SPARSE_KEYS: tuple[str, ...] = (
         "item_id",
         "category_id",
         "brand_id",
@@ -160,9 +158,7 @@ class ItemTower(nn.Module):
             }
         )
         self.dense_norm = nn.LayerNorm(config.item_dense_dim)
-        total_in_dim = (
-            len(self.SPARSE_KEYS) * config.sparse_embedding_dim + config.item_dense_dim
-        )
+        total_in_dim = len(self.SPARSE_KEYS) * config.sparse_embedding_dim + config.item_dense_dim
         self.mlp = TowerMLP(
             input_dim=total_in_dim,
             hidden_dims=config.tower_hidden_dims,
@@ -177,7 +173,7 @@ class ItemTower(nn.Module):
 
     def forward(
         self,
-        sparse_features: Dict[str, torch.Tensor],
+        sparse_features: dict[str, torch.Tensor],
         dense_features: torch.Tensor,
     ) -> torch.Tensor:
         emb_list = [
@@ -194,7 +190,7 @@ class ItemTower(nn.Module):
 class TwoTowerRetrievalModel(nn.Module):
     """Two-Tower Dual Encoder with In-Batch Negative Sampling and Sampled Softmax Loss."""
 
-    def __init__(self, config: Optional[TwoTowerConfig] = None) -> None:
+    def __init__(self, config: TwoTowerConfig | None = None) -> None:
         super().__init__()
         self.config = config or TwoTowerConfig()
         self.user_tower = UserTower(self.config)
@@ -202,7 +198,7 @@ class TwoTowerRetrievalModel(nn.Module):
 
     def encode_user(
         self,
-        user_sparse: Dict[str, torch.Tensor],
+        user_sparse: dict[str, torch.Tensor],
         user_dense: torch.Tensor,
     ) -> torch.Tensor:
         """Encode user sparse & dense features into L2-normalized 64D embeddings."""
@@ -210,7 +206,7 @@ class TwoTowerRetrievalModel(nn.Module):
 
     def encode_item(
         self,
-        item_sparse: Dict[str, torch.Tensor],
+        item_sparse: dict[str, torch.Tensor],
         item_dense: torch.Tensor,
     ) -> torch.Tensor:
         """Encode item sparse & dense features into L2-normalized 64D embeddings."""
@@ -218,11 +214,11 @@ class TwoTowerRetrievalModel(nn.Module):
 
     def forward(
         self,
-        user_sparse: Dict[str, torch.Tensor],
+        user_sparse: dict[str, torch.Tensor],
         user_dense: torch.Tensor,
-        item_sparse: Dict[str, torch.Tensor],
+        item_sparse: dict[str, torch.Tensor],
         item_dense: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Compute user embeddings, item embeddings, and scaled cosine similarity matrix."""
         user_emb = self.encode_user(user_sparse, user_dense)
         item_emb = self.encode_item(item_sparse, item_dense)
@@ -233,9 +229,9 @@ class TwoTowerRetrievalModel(nn.Module):
         self,
         user_emb: torch.Tensor,
         item_emb: torch.Tensor,
-        item_ids: Optional[torch.Tensor] = None,
-        extra_neg_item_emb: Optional[torch.Tensor] = None,
-        candidate_sampling_probs: Optional[torch.Tensor] = None,
+        item_ids: torch.Tensor | None = None,
+        extra_neg_item_emb: torch.Tensor | None = None,
+        candidate_sampling_probs: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Compute in-batch negative sampled softmax loss with optional log-Q correction.
 
@@ -296,27 +292,23 @@ def train_two_tower(
     epochs: int = 3,
     lr: float = 1e-3,
     weight_decay: float = 1e-4,
-    device: Optional[torch.device] = None,
-) -> List[float]:
+    device: torch.device | None = None,
+) -> list[float]:
     """Train the Two-Tower retrieval model and return epoch loss history."""
     resolved_device = device or get_device()
     model.to(resolved_device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
 
-    epoch_losses: List[float] = []
+    epoch_losses: list[float] = []
     model.train()
 
     for _ in range(epochs):
         running_loss = 0.0
         num_batches = 0
         for batch in dataloader:
-            user_sparse = {
-                k: batch[k].to(resolved_device) for k in UserTower.SPARSE_KEYS
-            }
+            user_sparse = {k: batch[k].to(resolved_device) for k in UserTower.SPARSE_KEYS}
             user_dense = batch["user_dense"].to(resolved_device)
-            item_sparse = {
-                k: batch[k].to(resolved_device) for k in ItemTower.SPARSE_KEYS
-            }
+            item_sparse = {k: batch[k].to(resolved_device) for k in ItemTower.SPARSE_KEYS}
             item_dense = batch["item_dense"].to(resolved_device)
 
             optimizer.zero_grad()
@@ -345,8 +337,8 @@ def evaluate_recall_at_k(
     bundle: SyntheticDatasetBundle,
     k_values: Sequence[int] = (50, 100),
     max_eval_users: int = 200,
-    device: Optional[torch.device] = None,
-) -> Dict[str, float]:
+    device: torch.device | None = None,
+) -> dict[str, float]:
     """Evaluate Recall@K for Stage 1 retrieval over positive test interactions."""
     resolved_device = device or get_device()
     model.to(resolved_device)
@@ -356,18 +348,14 @@ def evaluate_recall_at_k(
     num_items = len(bundle.items)
     item_ids = np.arange(1, num_items + 1, dtype=np.int64)
     item_sparse = {
-        key: torch.from_numpy(bundle.item_sparse_matrix[key][1 : num_items + 1]).to(
-            resolved_device
-        )
+        key: torch.from_numpy(bundle.item_sparse_matrix[key][1 : num_items + 1]).to(resolved_device)
         for key in ItemTower.SPARSE_KEYS
     }
-    item_dense = torch.from_numpy(bundle.item_dense_matrix[1 : num_items + 1]).to(
-        resolved_device
-    )
+    item_dense = torch.from_numpy(bundle.item_dense_matrix[1 : num_items + 1]).to(resolved_device)
     all_item_emb = model.encode_item(item_sparse, item_dense)  # (N_items, 64)
 
     # Collect ground-truth positive items per user
-    user_positives: Dict[int, set[int]] = {}
+    user_positives: dict[int, set[int]] = {}
     for ev in bundle.interactions:
         if ev.clicked == 1 or ev.converted == 1:
             user_positives.setdefault(ev.user_id, set()).add(ev.item_id)
@@ -388,7 +376,7 @@ def evaluate_recall_at_k(
     max_k = min(max(k_values), num_items)
     top_indices = np.argpartition(-sim_matrix, kth=max_k - 1, axis=1)[:, :max_k]
 
-    recalls: Dict[str, List[float]] = {f"Recall@{k}": [] for k in k_values}
+    recalls: dict[str, list[float]] = {f"Recall@{k}": [] for k in k_values}
     for row_i, uid in enumerate(eval_uids):
         row_candidates = top_indices[row_i]
         row_scores = sim_matrix[row_i, row_candidates]

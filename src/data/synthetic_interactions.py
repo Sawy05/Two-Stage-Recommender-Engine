@@ -9,7 +9,6 @@ realistic convergence out of the box without external dataset downloads.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -24,7 +23,7 @@ class UserRecord:
     region: int
     device_tier: int
     dense_features: np.ndarray  # shape: (user_dense_dim,)
-    preferred_categories: Tuple[int, int]
+    preferred_categories: tuple[int, int]
     latent_factor: np.ndarray  # shape: (16,)
 
 
@@ -63,15 +62,15 @@ class InteractionEvent:
 class SyntheticDatasetBundle:
     """Container holding generated users, items, interactions, and vectorized arrays."""
 
-    users: Dict[int, UserRecord]
-    items: Dict[int, ItemRecord]
-    interactions: List[InteractionEvent]
-    user_sparse_matrix: Dict[str, np.ndarray]
+    users: dict[int, UserRecord]
+    items: dict[int, ItemRecord]
+    interactions: list[InteractionEvent]
+    user_sparse_matrix: dict[str, np.ndarray]
     user_dense_matrix: np.ndarray
-    item_sparse_matrix: Dict[str, np.ndarray]
+    item_sparse_matrix: dict[str, np.ndarray]
     item_dense_matrix: np.ndarray
-    cold_start_item_ids: List[int]
-    warm_item_ids: List[int]
+    cold_start_item_ids: list[int]
+    warm_item_ids: list[int]
 
 
 class SyntheticEcommerceGenerator:
@@ -110,7 +109,7 @@ class SyntheticEcommerceGenerator:
         norms = np.linalg.norm(category_centroids, axis=1, keepdims=True) + 1e-8
         category_centroids = category_centroids / norms
 
-        users: Dict[int, UserRecord] = {}
+        users: dict[int, UserRecord] = {}
         user_sparse_matrix = {
             "user_id": np.zeros(self.num_users + 1, dtype=np.int64),
             "age_bucket": np.zeros(self.num_users + 1, dtype=np.int64),
@@ -162,7 +161,7 @@ class SyntheticEcommerceGenerator:
         num_cold_start = max(10, int(self.num_items * self.cold_start_item_ratio))
         cold_start_cutoff = self.num_items - num_cold_start
 
-        items: Dict[int, ItemRecord] = {}
+        items: dict[int, ItemRecord] = {}
         item_sparse_matrix = {
             "item_id": np.zeros(self.num_items + 1, dtype=np.int64),
             "category_id": np.zeros(self.num_items + 1, dtype=np.int64),
@@ -170,8 +169,8 @@ class SyntheticEcommerceGenerator:
             "price_tier": np.zeros(self.num_items + 1, dtype=np.int64),
         }
         item_dense_matrix = np.zeros((self.num_items + 1, self.item_dense_dim), dtype=np.float32)
-        cold_start_item_ids: List[int] = []
-        warm_item_ids: List[int] = []
+        cold_start_item_ids: list[int] = []
+        warm_item_ids: list[int] = []
 
         for iid in range(1, self.num_items + 1):
             category_id = ((iid - 1) % self.num_categories) + 1
@@ -179,9 +178,9 @@ class SyntheticEcommerceGenerator:
             price_tier = int((iid % 5) + 1)
             is_cold = iid > cold_start_cutoff
 
-            latent = category_centroids[category_id] + self.rng.normal(
-                0.0, 0.10, size=16
-            ).astype(np.float32)
+            latent = category_centroids[category_id] + self.rng.normal(0.0, 0.10, size=16).astype(
+                np.float32
+            )
             latent = latent / (np.linalg.norm(latent) + 1e-8)
 
             quality_score = float(np.clip(0.5 + 0.25 * latent[0], 0.05, 0.95))
@@ -220,11 +219,11 @@ class SyntheticEcommerceGenerator:
                 warm_item_ids.append(iid)
 
         # Index warm items by category for fast positive/negative sampling
-        cat_to_warm_items: Dict[int, List[int]] = {c: [] for c in range(1, self.num_categories + 1)}
+        cat_to_warm_items: dict[int, list[int]] = {c: [] for c in range(1, self.num_categories + 1)}
         for iid in warm_item_ids:
             cat_to_warm_items[items[iid].category_id].append(iid)
 
-        interactions: List[InteractionEvent] = []
+        interactions: list[InteractionEvent] = []
         base_ts = 1_700_000_000
         warm_items_arr = np.array(warm_item_ids, dtype=np.int64)
 
@@ -321,7 +320,7 @@ class SyntheticEcommerceGenerator:
         user_dense: np.ndarray,
         item_dense: np.ndarray,
         session_dense: np.ndarray,
-        cross_features: Optional[np.ndarray] = None,
+        cross_features: np.ndarray | None = None,
     ) -> np.ndarray:
         """Concatenate user, item, session, and cross features into a 26-dim dense vector."""
         if cross_features is None:

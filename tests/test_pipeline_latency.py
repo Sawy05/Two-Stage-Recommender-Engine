@@ -16,7 +16,9 @@ def test_linucb_contextual_bandit_5_percent_traffic_slice() -> None:
     bandit = LinUCBContextualBandit(
         LinUCBConfig(context_dim=16, alpha=1.25, exploration_traffic_slice=0.05)
     )
-    bandit.register_cold_start_items([9001, 9002, 9003], item_categories={9001: 10, 9002: 11, 9003: 12})
+    bandit.register_cold_start_items(
+        [9001, 9002, 9003], item_categories={9001: 10, 9002: 11, 9003: 12}
+    )
 
     warm_ranked = [
         {
@@ -122,9 +124,7 @@ def test_fastapi_gateway_endpoints() -> None:
     assert payload["exploration_count"] == 1
     assert payload["latency"]["total_ms"] < 40.0
 
-    explore_item = next(
-        item for item in payload["recommendations"] if item["is_exploration"]
-    )
+    explore_item = next(item for item in payload["recommendations"] if item["is_exploration"])
     fb_resp = client.post(
         "/v1/bandit/feedback",
         json={

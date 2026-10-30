@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, Set
+from typing import Any
 
 import numpy as np
 
@@ -25,14 +25,14 @@ class RetrievalCandidate:
     item_id: int
     ann_score: float
     retrieval_rank: int
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 @dataclass
 class RetrievalResult:
     """Container for Stage 1 top-K ANN candidates and execution latency."""
 
-    candidates: List[RetrievalCandidate]
+    candidates: list[RetrievalCandidate]
     latency_ms: float
     backend: str
 
@@ -52,7 +52,7 @@ class ANNSearchEngine:
         self,
         user_vector: np.ndarray,
         top_k: int = 100,
-        exclude_item_ids: Optional[Set[int]] = None,
+        exclude_item_ids: set[int] | None = None,
         use_hnsw_routing: bool = True,
     ) -> RetrievalResult:
         """Retrieve top-K nearest item candidates in <5ms for a 64D user query vector."""
@@ -85,7 +85,7 @@ class ANNSearchEngine:
         self,
         user_vectors: np.ndarray,
         top_k: int = 100,
-    ) -> Tuple[np.ndarray, np.ndarray, float]:
+    ) -> tuple[np.ndarray, np.ndarray, float]:
         """Vectorized batch ANN retrieval returning (item_ids [B, K], scores [B, K], latency_ms)."""
         start_ns = time.perf_counter_ns()
         queries = np.asarray(user_vectors, dtype=np.float32)
@@ -115,8 +115,8 @@ class ANNSearchEngine:
         self,
         query: np.ndarray,
         top_k: int,
-        exclude_item_ids: Optional[Set[int]] = None,
-    ) -> List[RetrievalCandidate]:
+        exclude_item_ids: set[int] | None = None,
+    ) -> list[RetrievalCandidate]:
         limit = top_k + (len(exclude_item_ids) if exclude_item_ids else 0)
         hits = self.indexer._qdrant_client.search(
             collection_name=self.indexer.config.collection_name,
@@ -124,7 +124,7 @@ class ANNSearchEngine:
             search_params=qmodels.SearchParams(hnsw_ef=self.ef_search, exact=False),
             limit=limit,
         )
-        results: List[RetrievalCandidate] = []
+        results: list[RetrievalCandidate] = []
         for hit in hits:
             iid = int(hit.id)
             if exclude_item_ids and iid in exclude_item_ids:
@@ -145,9 +145,9 @@ class ANNSearchEngine:
         self,
         query: np.ndarray,
         top_k: int,
-        exclude_item_ids: Optional[Set[int]] = None,
+        exclude_item_ids: set[int] | None = None,
         use_hnsw_routing: bool = True,
-    ) -> List[RetrievalCandidate]:
+    ) -> list[RetrievalCandidate]:
         num_items = len(self.indexer.item_ids)
         if num_items == 0:
             return []
@@ -161,9 +161,7 @@ class ANNSearchEngine:
             c_scores = self.indexer.entry_centroids @ query
             n_probes = min(4, len(c_scores))
             top_c = np.argpartition(-c_scores, kth=n_probes - 1)[:n_probes]
-            cand_rows = np.unique(
-                np.concatenate([self.indexer.centroid_members[c] for c in top_c])
-            )
+            cand_rows = np.unique(np.concatenate([self.indexer.centroid_members[c] for c in top_c]))
             if len(cand_rows) < k_target:
                 scores = self.indexer.embeddings @ query
                 candidate_pool_rows = np.arange(num_items, dtype=np.int32)
@@ -188,7 +186,7 @@ class ANNSearchEngine:
 
         sorted_local = top_local[np.argsort(-scores[top_local])]
 
-        results: List[RetrievalCandidate] = []
+        results: list[RetrievalCandidate] = []
         for loc_idx in sorted_local:
             global_row = int(candidate_pool_rows[loc_idx])
             iid = int(self.indexer.item_ids[global_row])

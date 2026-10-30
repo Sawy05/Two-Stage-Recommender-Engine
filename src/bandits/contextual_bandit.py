@@ -9,8 +9,9 @@ items with zero historical interactions.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -55,9 +56,9 @@ class BanditCandidateScore:
 class LinUCBContextualBandit:
     """Disjoint LinUCB Contextual Bandit with Sherman-Morrison O(d^2) updates."""
 
-    def __init__(self, config: Optional[LinUCBConfig] = None) -> None:
+    def __init__(self, config: LinUCBConfig | None = None) -> None:
         self.config = config or LinUCBConfig()
-        self.arms: Dict[int, ArmState] = {}
+        self.arms: dict[int, ArmState] = {}
         self.total_requests: int = 0
         self.total_exploration_slots: int = 0
         self.total_impressions_served: int = 0
@@ -65,8 +66,8 @@ class LinUCBContextualBandit:
     def register_cold_start_items(
         self,
         item_ids: Sequence[int],
-        item_categories: Optional[Dict[int, int]] = None,
-        prior_vectors: Optional[Dict[int, np.ndarray]] = None,
+        item_categories: dict[int, int] | None = None,
+        prior_vectors: dict[int, np.ndarray] | None = None,
     ) -> None:
         """Register newly added items with zero interaction history into the bandit pool."""
         d = self.config.context_dim
@@ -81,7 +82,11 @@ class LinUCBContextualBandit:
                 vec = np.asarray(prior_vectors[int_id], dtype=np.float32).reshape(-1)
                 b_init[: min(d, len(vec))] = 0.05 * vec[: min(d, len(vec))]
             theta_init = inv_init @ b_init
-            cat_id = item_categories.get(int_id, (int_id % 40) + 1) if item_categories else (int_id % 40) + 1
+            cat_id = (
+                item_categories.get(int_id, (int_id % 40) + 1)
+                if item_categories
+                else (int_id % 40) + 1
+            )
             self.arms[int_id] = ArmState(
                 item_id=int_id,
                 a_inv=inv_init.copy(),
@@ -93,7 +98,7 @@ class LinUCBContextualBandit:
                 category_id=cat_id,
             )
 
-    def get_cold_start_pool(self) -> List[int]:
+    def get_cold_start_pool(self) -> list[int]:
         """Return item IDs that currently qualify as cold-start (zero/low impressions)."""
         return [
             iid
@@ -104,8 +109,8 @@ class LinUCBContextualBandit:
     def score_arms(
         self,
         context_vector: np.ndarray,
-        candidate_item_ids: Optional[Sequence[int]] = None,
-    ) -> List[BanditCandidateScore]:
+        candidate_item_ids: Sequence[int] | None = None,
+    ) -> list[BanditCandidateScore]:
         """Compute UCB_a(x) = theta_a^T x + alpha * sqrt(x^T A_a^{-1} x) for cold-start items."""
         x = self._normalize_context(context_vector)
         pool = (
@@ -116,7 +121,7 @@ class LinUCBContextualBandit:
         if not pool:
             return []
 
-        scores: List[BanditCandidateScore] = []
+        scores: list[BanditCandidateScore] = []
         for iid in pool:
             int_id = int(iid)
             if int_id not in self.arms:
@@ -171,10 +176,10 @@ class LinUCBContextualBandit:
 
     def interleave_exploration(
         self,
-        ranked_items: List[Dict[str, Any]],
+        ranked_items: list[dict[str, Any]],
         context_vector: np.ndarray,
         top_k: int = 20,
-    ) -> Tuple[List[Dict[str, Any]], int]:
+    ) -> tuple[list[dict[str, Any]], int]:
         """Allocate a 5% exploration traffic slice to cold-start items in the final feed.
 
         For a feed of size `top_k` (e.g. 20), 5% corresponds to 1 dedicated exploration
@@ -206,7 +211,7 @@ class LinUCBContextualBandit:
         existing_top_cats = {int(item.get("category_id", -1)) for item in trimmed[:5]}
 
         # Prefer high-UCB cold-start items that also diversify categories
-        selected_cold: List[BanditCandidateScore] = []
+        selected_cold: list[BanditCandidateScore] = []
         for cand in cold_scores:
             if cand.item_id in existing_ids:
                 continue

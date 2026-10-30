@@ -64,7 +64,9 @@ def test_two_tower_in_batch_sampled_softmax_convergence() -> None:
     bundle = gen.generate()
     loader = create_two_tower_dataloader(bundle, batch_size=64, shuffle=True)
 
-    model = TwoTowerRetrievalModel(TwoTowerConfig(embedding_dim=64, lr=0.003) if False else TwoTowerConfig(embedding_dim=64))
+    model = TwoTowerRetrievalModel(
+        TwoTowerConfig(embedding_dim=64, lr=0.003) if False else TwoTowerConfig(embedding_dim=64)
+    )
     losses = train_two_tower(model, loader, epochs=4, lr=3e-3)
 
     assert len(losses) == 4

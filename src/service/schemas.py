@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from pydantic import BaseModel, Field
 
 
@@ -13,10 +11,10 @@ class SessionContext(BaseModel):
     device_type: int = Field(default=1, ge=1, le=4, description="User device type ID (1..4)")
     hour_of_day: int = Field(default=14, ge=0, le=23, description="Current hour of day (0..23)")
     day_of_week: int = Field(default=3, ge=0, le=6, description="Current day of week (0..6)")
-    active_category_id: Optional[int] = Field(
+    active_category_id: int | None = Field(
         default=None, description="Optional category currently browsed in session"
     )
-    exclude_item_ids: List[int] = Field(
+    exclude_item_ids: list[int] = Field(
         default_factory=list, description="Items to exclude (e.g., already purchased)"
     )
 
@@ -48,7 +46,7 @@ class RecommendedItem(BaseModel):
     final_score: float
     stage1_score: float
     is_exploration: bool = False
-    ucb_score: Optional[float] = None
+    ucb_score: float | None = None
 
 
 class LatencyBreakdown(BaseModel):
@@ -65,7 +63,7 @@ class RecommendationResponse(BaseModel):
     """Complete response returned by POST /v1/recommend."""
 
     user_id: int
-    recommendations: List[RecommendedItem]
+    recommendations: list[RecommendedItem]
     candidate_count_stage1: int
     exploration_count: int
     category_diversity_ratio: float
@@ -78,7 +76,9 @@ class BanditFeedbackRequest(BaseModel):
 
     user_id: int = Field(..., ge=1)
     item_id: int = Field(..., ge=1)
-    reward: float = Field(..., ge=0.0, le=1.0, description="Observed reward (e.g. click=0.5, buy=1.0)")
+    reward: float = Field(
+        ..., ge=0.0, le=1.0, description="Observed reward (e.g. click=0.5, buy=1.0)"
+    )
 
 
 class BanditFeedbackResponse(BaseModel):

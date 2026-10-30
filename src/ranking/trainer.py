@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
 
 import numpy as np
 import torch
@@ -66,11 +65,11 @@ def compute_ndcg_at_k(
     relevances = np.asarray(relevances, dtype=np.float64).reshape(-1)
     scores = np.asarray(scores, dtype=np.float64).reshape(-1)
 
-    user_groups: Dict[int, List[int]] = {}
+    user_groups: dict[int, list[int]] = {}
     for idx, uid in enumerate(user_ids):
         user_groups.setdefault(int(uid), []).append(idx)
 
-    ndcgs: List[float] = []
+    ndcgs: list[float] = []
     for indices in user_groups.values():
         if len(indices) < 2:
             continue
@@ -102,7 +101,7 @@ class DCNv2Trainer:
         weight_decay: float = 1e-4,
         ctr_weight: float = 1.0,
         cvr_weight: float = 1.0,
-        device: Optional[torch.device] = None,
+        device: torch.device | None = None,
     ) -> None:
         self.device = device or get_device()
         self.model = model.to(self.device)
@@ -126,7 +125,7 @@ class DCNv2Trainer:
 
     def train_step(
         self,
-        sparse_inputs: Dict[str, torch.Tensor] | torch.Tensor,
+        sparse_inputs: dict[str, torch.Tensor] | torch.Tensor,
         dense_features: torch.Tensor,
         label_ctr: torch.Tensor,
         label_cvr: torch.Tensor,
@@ -149,9 +148,9 @@ class DCNv2Trainer:
         self.optimizer.step()
         return float(loss.item())
 
-    def fit(self, dataloader: DataLoader, epochs: int = 3) -> List[float]:
+    def fit(self, dataloader: DataLoader, epochs: int = 3) -> list[float]:
         """Train DCNv2 across multiple epochs and return epoch mean losses."""
-        history: List[float] = []
+        history: list[float] = []
         for _ in range(epochs):
             epoch_loss = 0.0
             steps = 0
@@ -171,18 +170,16 @@ class DCNv2Trainer:
     def evaluate(self, dataloader: DataLoader, k: int = 10) -> RankingMetrics:
         """Evaluate ROC-AUC (CTR & CVR), NDCG@10, and validation loss."""
         self.model.eval()
-        all_ctr_preds: List[np.ndarray] = []
-        all_cvr_preds: List[np.ndarray] = []
-        all_ctr_labels: List[np.ndarray] = []
-        all_cvr_labels: List[np.ndarray] = []
-        all_user_ids: List[np.ndarray] = []
+        all_ctr_preds: list[np.ndarray] = []
+        all_cvr_preds: list[np.ndarray] = []
+        all_ctr_labels: list[np.ndarray] = []
+        all_cvr_labels: list[np.ndarray] = []
+        all_user_ids: list[np.ndarray] = []
         total_loss = 0.0
         steps = 0
 
         for batch in dataloader:
-            sparse = {
-                key: val.to(self.device) for key, val in batch["sparse_features"].items()
-            }
+            sparse = {key: val.to(self.device) for key, val in batch["sparse_features"].items()}
             dense = batch["dense_features"].to(self.device)
             y_ctr = batch["label_ctr"].to(self.device)
             y_cvr = batch["label_cvr"].to(self.device)
