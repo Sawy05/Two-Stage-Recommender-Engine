@@ -1,0 +1,71 @@
+# Model weights and exported artifacts
+*.pt
+*.pth
+*.onnx
+*.trt
+*.engine
+checkpoints/
+artifacts/
+exported_models/
+
+# Vector database indexes & local storage
+qdrant_storage/
+milvus_data/
+vector_index/
+*.index
+*.hnsw
+*.faiss
+
+# Generated synthetic datasets
+/data/
+/datasets/
+*.csv
+*.parquet
+*.feather
+*.npy
+*.npz
+*.pkl
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Python build, packaging & cache artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing & linting caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# Virtual environments & IDEs
+.venv/
+venv/
+ENV/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,77 @@
+data:
+  num_users: 2000
+  num_items: 5000
+  num_categories: 40
+  num_brands: 120
+  num_interactions: 50000
+  user_dense_dim: 8
+  item_dense_dim: 8
+  context_dense_dim: 6
+  cold_start_item_ratio: 0.08
+  seed: 42
+
+retrieval:
+  embedding_dim: 64
+  user_sparse_cardinalities:
+    user_id: 2001
+    age_bucket: 8
+    gender: 4
+    region: 12
+    device_tier: 4
+  item_sparse_cardinalities:
+    item_id: 5001
+    category_id: 41
+    brand_id: 121
+    price_tier: 6
+  sparse_embedding_dim: 16
+  user_dense_dim: 8
+  item_dense_dim: 8
+  tower_hidden_dims: [128, 64]
+  dropout: 0.1
+  temperature: 0.07
+  num_sampled_negatives: 64
+  learning_rate: 0.001
+  weight_decay: 0.0001
+
+ann_index:
+  backend: "qdrant_or_hnsw"
+  collection_name: "items_two_tower"
+  embedding_dim: 64
+  top_k: 100
+  hnsw_m: 16
+  hnsw_ef_construct: 128
+  hnsw_ef_search: 64
+
+ranking:
+  sparse_cardinalities:
+    user_id: 2001
+    item_id: 5001
+    category_id: 41
+    brand_id: 121
+    age_bucket: 8
+    region: 12
+    device_type: 5
+  sparse_embedding_dim: 16
+  dense_feature_dim: 26
+  num_cross_layers: 3
+  low_rank_dim: 32
+  deep_hidden_dims: [256, 128, 64]
+  dropout: 0.1
+  ctr_loss_weight: 1.0
+  cvr_loss_weight: 1.0
+  learning_rate: 0.001
+  weight_decay: 0.0001
+
+bandit:
+  context_dim: 16
+  alpha: 1.25
+  l2_reg: 1.0
+  exploration_traffic_slice: 0.05
+  cold_start_max_impressions: 5
+
+service:
+  top_k_retrieval: 100
+  top_k_final: 20
+  redis_ttl_seconds: 3600
+  p99_latency_budget_ms: 40.0
+  cvr_ranking_alpha: 2.5
