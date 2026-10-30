@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_SLUG="Sawy05/two-stage-recsys-dcn"
+REPO_SLUG="Sawy05/Two-Stage-Recommender-Engine"
 BRANCH="main"
 
 echo "============================================================"

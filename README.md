@@ -1,6 +1,6 @@
-# Enterprise Two-Stage Recommendation Engine (`two-stage-recsys-dcn`)
+# Enterprise Two-Stage Recommendation Engine (`Two-Stage-Recommender-Engine`)
 
-[![CI Pipeline](https://github.com/Sawy05/two-stage-recsys-dcn/actions/workflows/ci.yml/badge.svg)](https://github.com/Sawy05/two-stage-recsys-dcn/actions)
+[![CI Pipeline](https://github.com/Sawy05/Two-Stage-Recommender-Engine/actions/workflows/ci.yml/badge.svg)](https://github.com/Sawy05/Two-Stage-Recommender-Engine/actions)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![PyTorch 2.x](https://img.shields.io/badge/PyTorch-2.x-EE4C2C.svg)](https://pytorch.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Sub--40ms_SLA-009688.svg)](https://fastapi.tiangolo.com/)

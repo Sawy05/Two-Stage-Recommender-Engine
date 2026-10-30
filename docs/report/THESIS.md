@@ -2,7 +2,7 @@
 
 **Author:** Ahmed Elsawy (`@Sawy05`)  
 **Affiliation:** Systems and Machine Learning Engineering Division, Autonomous Intelligence Infrastructure  
-**Repository:** [https://github.com/Sawy05/two-stage-recsys-dcn](https://github.com/Sawy05/two-stage-recsys-dcn)  
+**Repository:** [https://github.com/Sawy05/Two-Stage-Recommender-Engine](https://github.com/Sawy05/Two-Stage-Recommender-Engine)  
 **Document Version:** 1.0.0 (Production Architecture & Thesis Report)  
 **Date:** October 2026  
 
