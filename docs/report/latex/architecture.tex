@@ -1,0 +1,56 @@
+\section{Mathematical Formulation and System Architecture}
+\label{sec:architecture}
+
+Industrial recommendation pipelines decompose the full catalog space $\mathcal{I}$ ($|\mathcal{I}| \gg 10^6$) into a multi-stage funnel:
+\begin{equation}
+\mathcal{I} \xrightarrow[\mathcal{O}(\log |\mathcal{I}|)]{\text{Stage 1: ANN Candidate Retrieval}} \mathcal{C}_u \xrightarrow[\mathcal{O}(|\mathcal{C}_u| \cdot \text{FLOPs})]{\text{Stage 2: DCNv2 Multi-Task Ranking}} \mathcal{R}_u \xrightarrow[\mathcal{O}(K \cdot d_c^2)]{\text{Stage 3: LinUCB Bandit}} \mathcal{F}_u^*
+\end{equation}
+where $|\mathcal{C}_u| = 100$ and $|\mathcal{F}_u^*| = K = 20$.
+
+\subsection{Stage 1: Two-Tower Dual Metric Learning}
+Let $u \in \mathcal{U}$ be represented by sparse attributes $\mathbf{s}_u$ and dense features $\mathbf{d}_u \in \mathbb{R}^{D_u}$, and item $i \in \mathcal{I}$ by sparse attributes $\mathbf{s}_i$ and dense features $\mathbf{d}_i \in \mathbb{R}^{D_i}$. The user tower $\phi: \mathcal{U} \to \mathbb{S}^{d-1}$ and item tower $\psi: \mathcal{I} \to \mathbb{S}^{d-1}$ project inputs to the unit hypersphere ($d = 64$):
+\begin{align}
+\phi(u) &= \frac{\mathbf{W}_u \cdot \text{MLP}_u\left( \bigoplus_{m=1}^{M_u} \mathbf{E}_{u,m}[s_{u,m}] \oplus \text{LayerNorm}(\mathbf{d}_u) \right)}{\left\| \mathbf{W}_u \cdot \text{MLP}_u\left( \bigoplus_{m=1}^{M_u} \mathbf{E}_{u,m}[s_{u,m}] \oplus \text{LayerNorm}(\mathbf{d}_u) \right) \right\|_2} \\
+\psi(i) &= \frac{\mathbf{W}_i \cdot \text{MLP}_i\left( \bigoplus_{m=1}^{M_i} \mathbf{E}_{i,m}[s_{i,m}] \oplus \text{LayerNorm}(\mathbf{d}_i) \right)}{\left\| \mathbf{W}_i \cdot \text{MLP}_i\left( \bigoplus_{m=1}^{M_i} \mathbf{E}_{i,m}[s_{i,m}] \oplus \text{LayerNorm}(\mathbf{d}_i) \right) \right\|_2}
+\end{align}
+
+Relevance is quantified via temperature-scaled cosine similarity $s(u, i) = \frac{\langle \phi(u), \psi(i) \rangle}{\tau}$ with $\tau = 0.07$. Training optimizes an in-batch negative sampled softmax with $\log Q$ frequency correction \cite{yi2019sampling}:
+\begin{equation}
+\mathcal{L}_{\text{sampled-softmax}} = - \frac{1}{B} \sum_{b=1}^B \log \frac{\exp\left( \frac{\langle \phi(u_b), \psi(i_b) \rangle}{\tau} - \log Q(i_b) \right)}{\sum_{j=1}^B \exp\left( \frac{\langle \phi(u_b), \psi(i_j) \rangle}{\tau} - \log Q(i_j) \right) + M_{b,j}}
+\end{equation}
+where $M_{b,j} = -\infty$ if $i_b = i_j$ for $b \neq j$ to eliminate false negative gradient distortion.
+
+Precomputed item representations are indexed into an Approximate Nearest Neighbor (ANN) index utilizing Hierarchical Navigable Small World (HNSW) graphs \cite{malkov2020efficient} configured with construction beam $M=16$, $efConstruction=128$, and runtime search beam $efSearch=64$, yielding sub-0.7~ms retrieval for 100 candidate items.
+
+\subsection{Stage 2: Deep \& Cross Network v2 (DCNv2) Multi-Task Ranking}
+The retrieved candidates are passed to DCNv2 \cite{wang2021dcn} along with dynamic session context (hour of day, day of week, device tier) and explicit interaction cross-features. Denoting the combined feature vector by $\mathbf{x}_0 \in \mathbb{R}^{d_{\text{in}}}$ ($d_{\text{in}} = 138$), the low-rank explicit cross layer at depth $l$ is defined as:
+\begin{equation}
+\mathbf{x}_{l+1} = \mathbf{x}_0 \odot \left( \mathbf{U}_l \cdot g\left( \mathbf{V}_l^\top \mathbf{x}_l \right) + \mathbf{b}_l \right) + \mathbf{x}_l
+\end{equation}
+where $\mathbf{V}_l \in \mathbb{R}^{d_{\text{in}} \times r}$, $\mathbf{U}_l \in \mathbb{R}^{r \times d_{\text{in}}}$ with rank $r = 32 \ll d_{\text{in}}$, $g(\cdot) = \tanh(\cdot)$, and $\odot$ represents the Hadamard product. After $L=3$ layers, $\mathbf{x}_L$ captures explicit polynomial interactions up to degree $L+1$.
+
+In parallel, a deep feed-forward network processes $\mathbf{x}_0$:
+\begin{equation}
+\mathbf{h}_{k+1} = \text{GELU}\left(\text{LayerNorm}\left(\mathbf{W}_k \mathbf{h}_k + \mathbf{c}_k\right)\right), \quad k \in \{0, 1, 2\}
+\end{equation}
+The cross output $\mathbf{x}_L$ and deep output $\mathbf{h}_K$ are fused to drive dual multi-task heads for Click-Through Rate ($\text{pCTR}$) and Conversion Rate ($\text{pCVR}$):
+\begin{align}
+\hat{y}_{\text{CTR}} &= \sigma\left( \mathbf{w}_{\text{CTR}}^\top \text{GELU}(\mathbf{W}_{\text{CTR}} [\mathbf{x}_L; \mathbf{h}_K] + \mathbf{b}_{\text{CTR}}) + c_{\text{CTR}} \right) \\
+\hat{y}_{\text{CVR}} &= \sigma\left( \mathbf{w}_{\text{CVR}}^\top \text{GELU}(\mathbf{W}_{\text{CVR}} [\mathbf{x}_L; \mathbf{h}_K] + \mathbf{b}_{\text{CVR}}) + c_{\text{CVR}} \right)
+\end{align}
+
+The final composite utility score integrates both predictions, retrieval similarity, category affinity, and diversity saturation penalties:
+\begin{equation}
+\text{Score}(u, i) = \hat{y}_{\text{CTR}} + \alpha_{\text{CVR}} \hat{y}_{\text{CVR}} + \beta s(u, i) + \gamma \mathbf{1}_{\{\text{cat}(i) \in \text{pref}(u)\}} - \delta \cdot \text{Count}(\text{cat}(i))
+\end{equation}
+
+\subsection{Stage 3: LinUCB Contextual Bandit Exploration}
+To eliminate feedback starvation for newly registered catalog items ($N_a = 0$), a Disjoint Linear Upper Confidence Bound (LinUCB) bandit \cite{li2010contextual,auer2002finite} allocates a 5\% exploration slice. Each cold-start item arm $a$ maintains sufficient statistics $(\mathbf{A}_a, \mathbf{b}_a)$, where $\mathbf{A}_a = \mathbf{X}_a^\top \mathbf{X}_a + \lambda_{\text{reg}}\mathbf{I} \in \mathbb{R}^{d_c \times d_c}$ ($d_c = 16$). Arms are scored according to:
+\begin{equation}
+\text{UCB}_a(\mathbf{x}_{u, t}) = \hat{\boldsymbol{\theta}}_a^\top \mathbf{x}_{u, t} + \alpha_{\text{UCB}} \sqrt{\mathbf{x}_{u, t}^\top \mathbf{A}_a^{-1} \mathbf{x}_{u, t}} + \Delta_{\text{unseen}} \cdot \mathbf{1}_{\{N_a = 0\}}
+\end{equation}
+with $\hat{\boldsymbol{\theta}}_a = \mathbf{A}_a^{-1} \mathbf{b}_a$. Upon observing feedback reward $r_{t, a} \in [0, 1]$, the covariance inverse $\mathbf{A}_a^{-1}$ is updated in $\mathcal{O}(d_c^2)$ time using the Sherman-Morrison identity \cite{sherman1950adjustment}:
+\begin{equation}
+\mathbf{A}_{a, \text{new}}^{-1} = \mathbf{A}_{a, \text{old}}^{-1} - \frac{\mathbf{A}_{a, \text{old}}^{-1} \mathbf{x}_{u, t} \mathbf{x}_{u, t}^\top \mathbf{A}_{a, \text{old}}^{-1}}{1 + \mathbf{x}_{u, t}^\top \mathbf{A}_{a, \text{old}}^{-1} \mathbf{x}_{u, t}}, \quad \mathbf{b}_{a, \text{new}} = \mathbf{b}_{a, \text{old}} + r_{t, a} \mathbf{x}_{u, t}
+\end{equation}
+The highest-UCB candidate is injected into the top-20 presentation feed, ensuring continuous catalog discovery without compromising the exploitation utility of the DCNv2 ranker.

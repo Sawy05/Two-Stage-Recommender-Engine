@@ -1,0 +1,69 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{cite}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    citecolor=blue,
+    urlcolor=blue
+}
+
+\begin{document}
+
+\title{Dual-Stage Vector Retrieval and High-Order Feature Crossing: An Enterprise Recommender Architecture with Multi-Task Ranking and LinUCB Cold-Start Exploration}
+
+\author{
+    \IEEEauthorblockN{Ahmed Elsawy}
+    \IEEEauthorblockA{\textit{Systems and Machine Learning Engineering Division} \\
+    \textit{Autonomous Intelligence Infrastructure} \\
+    GitHub: \texttt{@Sawy05} \\
+    Repository: \href{https://github.com/Sawy05/two-stage-recsys-dcn}{github.com/Sawy05/two-stage-recsys-dcn}}
+}
+
+\maketitle
+
+\begin{abstract}
+\input{abstract}
+\end{abstract}
+
+\begin{IEEEkeywords}
+Recommender Systems, Two-Tower Retrieval, Vector Databases, Deep \& Cross Network, Multi-Task Learning, Contextual Bandits, LinUCB, High-Throughput Inference.
+\end{IEEEkeywords}
+
+\section{Introduction}
+Modern e-commerce and media platforms rely on real-time recommendation engines to match users with personalized items from catalogs scaling well beyond millions of entities \cite{covington2016deep,cheng2016wide}. The primary operational challenge in industrial deployments is the tension between recommendation accuracy and strict latency budgets, where services must deliver ranked results under 40~ms \cite{wang2021dcn,yi2019sampling}.
+
+To overcome the combinatorial complexity of scoring every item in real time, industrial systems adopt a multi-stage funnel architecture \cite{covington2016deep}. In this paper, we formulate and implement an end-to-end enterprise recommendation engine coupling:
+\begin{enumerate}
+    \item \textbf{Stage 1 Candidate Retrieval:} Dual Two-Tower encoders mapping sparse and dense features into a shared 64-dimensional metric space, indexed using Hierarchical Navigable Small World (HNSW) graphs \cite{malkov2020efficient}.
+    \item \textbf{Stage 2 Multi-Task Ranking:} Deep \& Cross Network v2 (DCNv2) \cite{wang2021dcn} combining factorized low-rank polynomial feature crosses with a parallel deep MLP to jointly estimate Click-Through Rate ($\text{pCTR}$) and Conversion Rate ($\text{pCVR}$).
+    \item \textbf{Stage 3 Cold-Start Exploration:} A Disjoint Linear Upper Confidence Bound (LinUCB) contextual bandit \cite{li2010contextual,auer2002finite} utilizing Sherman-Morrison rank-1 recursive inverse covariance updates \cite{sherman1950adjustment} to allocate a 5\% exploration slice to newly added catalog items.
+\end{enumerate}
+
+\input{architecture}
+
+\input{experiments}
+
+\section{Production Scalability and Resilience}
+\subsection{Caching and Fallback Layers}
+The pipeline incorporates a multi-tier caching hierarchy. User representations are cached in Redis with an in-memory thread-safe LRU fallback. In the event of a vector database network timeout, candidate retrieval seamlessly falls back to an in-process SIMD-accelerated HNSW index in application RAM. Furthermore, if TorchScript scoring encounters unexpected inputs, a rule-based popularity and category-matching heuristic activates, preventing service interruption.
+
+\subsection{Online Bandit Updates}
+Incoming interaction feedback is routed asynchronously to the LinUCB bandit engine. Performing Sherman-Morrison rank-1 updates takes less than $0.05\text{ ms}$, enabling immediate adaptation to emerging user engagement signals without retraining the deep ranking network.
+
+\section{Conclusion and Future Work}
+This work has demonstrated the viability of uniting Two-Tower retrieval, low-rank DCNv2 ranking, and LinUCB contextual exploration in an enterprise recommendation engine. The system achieves high offline discriminative performance ($\text{Recall@100}=0.7532$, $\text{NDCG@10}=0.9542$, $\text{CTR AUC}=0.9682$) while guaranteeing a P99 response time of $9.060\text{ ms}$ on commodity CPU hardware. Future research directions include incorporating graph neural network (GNN) pretraining over bipartite user-item graphs \cite{he2020lightgcn} and implementing FP8/INT8 static quantization via TensorRT for ultra-low latency acceleration.
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}

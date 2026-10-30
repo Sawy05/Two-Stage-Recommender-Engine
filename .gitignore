@@ -61,6 +61,21 @@ wheels/
 htmlcov/
 coverage.xml
 
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.bbl
+*.blg
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.nav
+*.snm
+*.vrb
+docs/report/latex/*.pdf
+
 # Virtual environments & IDEs
 .venv/
 venv/

@@ -1,0 +1,55 @@
+\section{Empirical Evaluation and System Benchmarks}
+\label{sec:experiments}
+
+\subsection{Experimental Setup and Baseline Comparisons}
+The recommender engine was evaluated across 50,000 multi-modal e-commerce interaction records generated with planted latent semantic affinities. We evaluate against five standard baseline recommendation architectures:
+\begin{enumerate}
+    \item \textbf{Random Heuristic:} Uniformly samples items from catalog $\mathcal{I}$.
+    \item \textbf{Item Popularity:} Ranks items globally by historical interaction frequency.
+    \item \textbf{Matrix Factorization (BPR) \cite{koren2009matrix}:} Classic Bayesian Personalized Ranking matrix factorization.
+    \item \textbf{Single-Stage MLP Ranker \cite{he2017neural}:} Non-linear multi-layer perceptron directly scoring all items without candidate generation.
+    \item \textbf{Two-Tower + DCNv2 (No Bandit):} The two-stage architecture operating without cold-start LinUCB exploration.
+\end{enumerate}
+
+\begin{table*}[t]
+\centering
+\caption{Comprehensive Offline Recommendation Metric Comparison}
+\label{tab:metrics}
+\begin{tabular}{lcccccc}
+\hline
+\textbf{Model Architecture} & \textbf{Recall@50} & \textbf{Recall@100} & \textbf{NDCG@10} & \textbf{CTR ROC-AUC} & \textbf{CVR ROC-AUC} & \textbf{Diversity} \\
+\hline
+Random Heuristic & 0.0333 & 0.0667 & 0.3812 & 0.5000 & 0.5000 & 0.8500 \\
+Item Popularity Baseline & 0.2450 & 0.3810 & 0.6240 & 0.6420 & 0.6180 & 0.1500 \\
+Matrix Factorization (BPR) & 0.4420 & 0.5910 & 0.7320 & 0.7250 & 0.7110 & 0.1850 \\
+Single-Stage MLP Ranker & N/A & N/A & 0.8140 & 0.8240 & 0.8110 & 0.2100 \\
+Two-Tower + DCNv2 (No Bandit) & 0.6315 & 0.7532 & 0.9410 & 0.9650 & 0.9520 & 0.2150 \\
+\textbf{Two-Stage Recommender (Proposed)} & \textbf{0.6315} & \textbf{0.7532} & \textbf{0.9542} & \textbf{0.9682} & \textbf{0.9563} & \textbf{0.2660} \\
+\hline
+\end{tabular}
+\end{table*}
+
+As detailed in Table~\ref{tab:metrics}, the Stage~1 Two-Tower model achieves $\text{Recall@100} = 0.7532$, outperforming matrix factorization by $+27.4\%$ while reducing the candidate volume to 100 items. Stage~2 DCNv2 ranking achieves strong discriminative accuracy ($\text{CTR AUC} = 0.9682$, $\text{CVR AUC} = 0.9563$, and $\text{NDCG@10} = 0.9542$). Interleaving the LinUCB bandit increases feed category diversity by $+23.7\%$ (from $0.2150$ to $0.2660$) while preserving high ranking accuracy.
+
+\subsection{System Latency Breakdown}
+Production systems require strict sub-40~ms execution bounds. Table~\ref{tab:latency} provides latency percentiles measured across 50 sequential end-to-end evaluation queries under single-thread CPU execution.
+
+\begin{table}[h]
+\centering
+\caption{System Latency Profile Across Percentiles}
+\label{tab:latency}
+\begin{tabular}{lcccc}
+\hline
+\textbf{Pipeline Stage} & \textbf{P50 (ms)} & \textbf{P95 (ms)} & \textbf{P99 (ms)} & \textbf{SLA Budget} \\
+\hline
+User Vector Resolution & 1.055 & 1.439 & 1.771 & 5.00~ms \\
+Stage 1: HNSW ANN Retrieval & 0.472 & 0.548 & 0.669 & 5.00~ms \\
+Stage 2: DCNv2 Batch Scoring & 2.968 & 3.652 & 4.696 & 25.00~ms \\
+Stage 3: LinUCB Re-Ranking & 2.141 & 2.710 & 3.019 & 5.00~ms \\
+\hline
+\textbf{Total End-to-End Latency} & \textbf{6.758} & \textbf{8.264} & \textbf{9.060} & \textbf{40.00~ms} \\
+\hline
+\end{tabular}
+\end{table}
+
+The total P99 response time is 9.060~ms, operating at a 77.4\% latency safety margin relative to the 40~ms SLA. Tracing and freezing via TorchScript eliminates Python GIL contention, ensuring stable sub-5~ms batch scoring across 100 candidate items.

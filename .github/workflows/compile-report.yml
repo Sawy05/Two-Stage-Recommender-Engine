@@ -1,0 +1,55 @@
+name: Compile Thesis & Release Documentation PDF
+
+on:
+  push:
+    paths:
+      - "docs/report/**"
+      - ".github/workflows/compile-report.yml"
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-latex-report:
+    name: Compile LaTeX Thesis to PDF
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Compile LaTeX Document
+        uses: xu-cheng/latex-action@v3
+        with:
+          root_file: main.tex
+          working_directory: docs/report/latex
+          args: -pdf -bibtex -file-line-error -halt-on-error -interaction=nonstopmode
+
+      - name: Organize Compiled PDF Artifact
+        run: |
+          mkdir -p docs/report
+          cp docs/report/latex/main.pdf docs/report/project_thesis_report.pdf
+
+      - name: Upload PDF Artifact to Workflow Run
+        uses: actions/upload-artifact@v4
+        with:
+          name: project-thesis-report-pdf
+          path: docs/report/project_thesis_report.pdf
+          if-no-files-found: error
+
+      - name: Publish PDF to GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main'
+        with:
+          tag_name: v1.0.0-documentation
+          name: "Project Thesis & Technical Report v1.0.0"
+          body: |
+            Automated compilation of the enterprise two-stage recommender thesis and technical proposal.
+            
+            - **PDF Document:** `project_thesis_report.pdf`
+            - **Architectures Covered:** Two-Tower ANN Retrieval (Stage 1), DCNv2 Multi-Task Ranking (Stage 2), and LinUCB Contextual Bandit Cold-Start.
+          files: docs/report/project_thesis_report.pdf
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
